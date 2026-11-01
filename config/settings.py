@@ -5,9 +5,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 SECRET_KEY = os.getenv('SECRET_KEY', 'dev-only-change-this-secret-key')
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '.up.railway.app']
-if os.getenv('RAILWAY_PUBLIC_DOMAIN'):
-    ALLOWED_HOSTS.append(os.getenv('RAILWAY_PUBLIC_DOMAIN'))
+ALLOWED_HOSTS = [
+    '127.0.0.1',
+    'localhost',
+    '.up.railway.app',
+    '.onrender.com',
+]
+
+if os.getenv('RENDER_EXTERNAL_HOSTNAME'):
+    ALLOWED_HOSTS.append(os.getenv('RENDER_EXTERNAL_HOSTNAME'))
+
 INSTALLED_APPS = [
     'django.contrib.admin','django.contrib.auth','django.contrib.contenttypes',
     'django.contrib.sessions','django.contrib.messages','django.contrib.staticfiles',
@@ -65,9 +72,14 @@ STATICFILES_STORAGE='whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL='media/'
 MEDIA_ROOT=BASE_DIR/'media'
 DEFAULT_AUTO_FIELD='django.db.models.BigAutoField'
-CSRF_TRUSTED_ORIGINS = []
-if os.getenv('RAILWAY_PUBLIC_DOMAIN'):
-    CSRF_TRUSTED_ORIGINS.append('https://' + os.getenv('RAILWAY_PUBLIC_DOMAIN'))
+CSRF_TRUSTED_ORIGINS = [
+    'https://college-attendance-erp.onrender.com',
+]
+
+if os.getenv('RENDER_EXTERNAL_HOSTNAME'):
+    CSRF_TRUSTED_ORIGINS.append(
+        'https://' + os.getenv('RENDER_EXTERNAL_HOSTNAME')
+    )
 LOGIN_URL='login'
 LOGIN_REDIRECT_URL='dashboard'
 LOGOUT_REDIRECT_URL='login'
