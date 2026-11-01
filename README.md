@@ -66,3 +66,31 @@ The import maps `student_id` to both Student ID and Roll Number, and preserves n
 
 ## 7. Existing console source
 The original `main.py`, `student.py`, `display.py`, `tests.py`, `students.json` and README are retained in `legacy_console/` in the delivered ZIP for reference.
+
+
+## 8. Deploy to Railway (GitHub + MySQL)
+
+1. Push this project folder to a GitHub repository. The repository root must contain `manage.py`, `requirements.txt`, `Procfile`, and the `config/` folder.
+2. In Railway, create a project and add a **MySQL** database service.
+3. Add a web service from your GitHub repository.
+4. In the web service Variables, add:
+   - `SECRET_KEY` = a long random secret
+   - `DEBUG` = `False`
+   - `MYSQLHOST` = reference `${{MySQL.MYSQLHOST}}`
+   - `MYSQLPORT` = reference `${{MySQL.MYSQLPORT}}`
+   - `MYSQLUSER` = reference `${{MySQL.MYSQLUSER}}`
+   - `MYSQLPASSWORD` = reference `${{MySQL.MYSQLPASSWORD}}`
+   - `MYSQLDATABASE` = reference `${{MySQL.MYSQLDATABASE}}`
+   Replace `MySQL` in the references with the exact Railway MySQL service name if it differs.
+5. Set the web service Build Command to:
+   `python manage.py collectstatic --noinput`
+6. The included `Procfile` runs migrations then starts Gunicorn. If Railway does not detect the Procfile, set Start Command to:
+   `python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT`
+7. Deploy, then open the web service Settings → Networking → Generate Domain.
+8. Create a superuser. Use Railway's service shell/command execution to run:
+   `python manage.py createsuperuser`
+9. Configure initial master data in `/admin/`.
+
+Railway's MySQL service exposes `MYSQLHOST`, `MYSQLPORT`, `MYSQLUSER`, `MYSQLPASSWORD`, and `MYSQLDATABASE`. Keep the database private; connect through Railway variable references, not a public TCP endpoint.
+
+**Before production:** review `DEBUG=False`, secret key, allowed hosts/CSRF settings, database backups, and media storage. The included deployment is a starter; uploaded profile images use local media storage and need persistent/object storage for reliable production retention.
