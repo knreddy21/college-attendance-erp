@@ -1,0 +1,82 @@
+[
+    {
+        "student_id": "STU001",
+        "name": "Aarav Sharma",
+        "age": 20,
+        "course": "Computer Science",
+        "email": "aarav.sharma@example.com",
+        "created_at": "2024-01-15 09:30:00"
+    },
+    {
+        "student_id": "STU002",
+        "name": "Priya Patel",
+        "age": 22,
+        "course": "Data Science",
+        "email": "priya.patel@example.com",
+        "created_at": "2024-01-20 11:00:00"
+    },
+    {
+        "student_id": "STU003",
+        "name": "Rohan Mehta",
+        "age": 21,
+        "course": "Artificial Intelligence",
+        "email": "rohan.mehta@example.com",
+        "created_at": "2024-02-01 14:15:00"
+    },
+    {
+        "student_id": "STU004",
+        "name": "Sneha Reddy",
+        "age": 19,
+        "course": "Information Technology",
+        "email": "sneha.reddy@example.com",
+        "created_at": "2024-02-10 10:45:00"
+    },
+    {
+        "student_id": "STU005",
+        "name": "Kiran Kumar",
+        "age": 23,
+        "course": "Cybersecurity",
+        "email": "kiran.kumar@example.com",
+        "created_at": "2024-02-15 16:00:00"
+    },
+    {
+        "student_id": "STU006",
+        "name": "Ananya Singh",
+        "age": 20,
+        "course": "Software Engineering",
+        "email": "ananya.singh@example.com",
+        "created_at": "2024-03-01 09:00:00"
+    },
+    {
+        "student_id": "STU007",
+        "name": "Vikram Nair",
+        "age": 24,
+        "course": "Cloud Computing",
+        "email": "vikram.nair@example.com",
+        "created_at": "2024-03-05 13:30:00"
+    },
+    {
+        "student_id": "STU008",
+        "name": "Divya Iyer",
+        "age": 21,
+        "course": "Machine Learning",
+        "email": "divya.iyer@example.com",
+        "created_at": "2024-03-12 15:00:00"
+    },
+    {
+        "student_id": "STU009",
+        "name": "Rahul Joshi",
+        "age": 22,
+        "course": "Web Development",
+        "email": "rahul.joshi@example.com",
+        "created_at": "2024-03-20 11:30:00"
+    },
+    {
+        "student_id": "STU010",
+        "name": "Meera Kapoor",
+        "age": 20,
+        "course": "Database Management",
+        "email": "meera.kapoor@example.com",
+        "created_at": "2024-04-01 10:00:00"
+    }
+]
