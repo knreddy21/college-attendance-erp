@@ -1,0 +1,92 @@
+{% extends 'core/base.html' %}
+{% block title %}Bulk Attendance | College ERP{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+  <div><h2 class="mb-1">Bulk Attendance</h2><p class="text-muted mb-0">Select a section and mark attendance for the whole class.</p></div>
+  <a class="btn btn-outline-secondary" href="{% url 'attendance_list' %}">Back to Attendance</a>
+</div>
+
+<div class="card p-3 mb-3">
+  <h5>Choose class and subject</h5>
+  <form method="get" class="row g-3">
+    <div class="col-md-4"><label class="form-label">Department</label>
+      <select name="department" class="form-select">
+        <option value="">All departments</option>
+        {% for d in departments %}<option value="{{ d.id }}" {% if filters.department == d.id|stringformat:"s" %}selected{% endif %}>{{ d.code }} - {{ d.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4"><label class="form-label">Academic year</label>
+      <select name="academic_year" class="form-select"><option value="">All academic years</option>
+        {% for y in academic_years %}<option value="{{ y.id }}" {% if filters.academic_year == y.id|stringformat:"s" %}selected{% endif %}>{{ y.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4"><label class="form-label">Semester</label>
+      <select name="semester" class="form-select"><option value="">All semesters</option>
+        {% for sem in semesters %}<option value="{{ sem.id }}" {% if filters.semester == sem.id|stringformat:"s" %}selected{% endif %}>{{ sem }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3"><label class="form-label">Section <span class="text-danger">*</span></label>
+      <select name="section" class="form-select" required><option value="">Select section</option>
+        {% for section in sections %}<option value="{{ section }}" {% if filters.section == section %}selected{% endif %}>{{ section }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-5"><label class="form-label">Subject <span class="text-danger">*</span></label>
+      <select name="subject" class="form-select" required><option value="">Select subject</option>
+        {% for subject in subjects %}<option value="{{ subject.id }}" {% if filters.subject == subject.id|stringformat:"s" %}selected{% endif %}>{{ subject.code }} - {{ subject.name }} ({{ subject.department.code }})</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2"><label class="form-label">Date</label><input class="form-control" type="date" name="date" value="{{ filters.date }}" required></div>
+    <div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary w-100">Load Students</button></div>
+  </form>
+</div>
+
+{% if roster_ready %}
+<div class="card p-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div><h5 class="mb-1">{{ filters.section }} · {{ selected_subject.code }}</h5><span class="text-muted">{{ students|length }} students · {{ filters.date }}</span></div>
+    <div class="d-flex gap-2 flex-wrap">
+      <button type="button" class="btn btn-sm btn-outline-success" onclick="setAllStatuses('P')">Mark all Present</button>
+      <button type="button" class="btn btn-sm btn-outline-danger" onclick="setAllStatuses('A')">Mark all Absent</button>
+    </div>
+  </div>
+  {% if students %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="department" value="{{ filters.department }}">
+    <input type="hidden" name="academic_year" value="{{ filters.academic_year }}">
+    <input type="hidden" name="semester" value="{{ filters.semester }}">
+    <input type="hidden" name="section" value="{{ filters.section }}">
+    <input type="hidden" name="subject" value="{{ filters.subject }}">
+    <input type="hidden" name="date" value="{{ filters.date }}">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead><tr><th>#</th><th>Roll number</th><th>Student name</th><th>Attendance status</th></tr></thead>
+        <tbody>
+        {% for student in students %}
+          <tr>
+            <td>{{ forloop.counter }}<input type="hidden" name="student_ids" value="{{ student.id }}"></td>
+            <td>{{ student.roll_number }}</td><td>{{ student.full_name }}</td>
+            <td><select class="form-select attendance-status" name="status_{{ student.id }}" style="max-width:190px">
+              {% for code,label in status_choices %}<option value="{{ code }}" {% if student.bulk_status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <span class="text-muted">Existing attendance for this subject and date will be updated.</span>
+      <button class="btn btn-success btn-lg" type="submit" name="save_attendance">Save Attendance for All Students</button>
+    </div>
+  </form>
+  {% else %}<div class="alert alert-warning mb-0">No students found for the selected section and filters.</div>{% endif %}
+</div>
+{% else %}
+<div class="alert alert-info">Select a section, subject and date, then click <strong>Load Students</strong> to display the class list.</div>
+{% endif %}
+<script>
+function setAllStatuses(value) {
+  document.querySelectorAll('.attendance-status').forEach(function(select) { select.value = value; });
+}
+</script>
+{% endblock %}

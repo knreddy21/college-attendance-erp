@@ -5,6 +5,7 @@ from io import BytesIO
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Count, Q, Avg
+from django.db import transaction
 from django.http import HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
@@ -13,6 +14,8 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from .models import *
 from .forms import *
+from openpyxl.utils import get_column_letter
+from openpyxl.cell.cell import MergedCell
 
 def staff_required(view):
     return login_required(user_passes_test(lambda u: u.is_staff)(view))
@@ -93,6 +96,86 @@ def attendance_mark(request):
         messages.success(request,'Attendance saved.')
         return redirect('attendance_list')
     return render(request,'core/form.html',{'form':form,'title':'Mark / Update Attendance'})
+
+
+@login_required
+def attendance_bulk(request):
+    """Mark or update attendance for all students in a selected section."""
+    departments = Department.objects.all()
+    academic_years = AcademicYear.objects.all()
+    semesters = Semester.objects.all()
+    sections = Student.objects.exclude(section='').values_list('section', flat=True).distinct().order_by('section')
+    subjects = Subject.objects.select_related('department', 'semester').all()
+    source = request.POST if request.method == 'POST' else request.GET
+    filters = {
+        'department': source.get('department', ''),
+        'academic_year': source.get('academic_year', ''),
+        'semester': source.get('semester', ''),
+        'section': source.get('section', ''),
+        'subject': source.get('subject', ''),
+        'date': source.get('date', timezone.localdate().isoformat()),
+    }
+    students = Student.objects.select_related('department', 'academic_year', 'semester').all()
+    if filters['department']: students = students.filter(department_id=filters['department'])
+    if filters['academic_year']: students = students.filter(academic_year_id=filters['academic_year'])
+    if filters['semester']: students = students.filter(semester_id=filters['semester'])
+    if filters['section']: students = students.filter(section__iexact=filters['section'])
+    students = students.order_by('roll_number')
+    roster_ready = bool(filters['section'] and filters['subject'] and filters['date'])
+    selected_subject = None
+    if roster_ready:
+        selected_subject = get_object_or_404(Subject, pk=filters['subject'])
+        if filters['department'] and selected_subject.department_id != int(filters['department']):
+            messages.error(request, 'Choose a subject from the selected department.')
+            roster_ready = False
+
+    if request.method == 'POST' and 'save_attendance' in request.POST:
+        if not roster_ready:
+            messages.error(request, 'Select a section, subject and date before saving.')
+        else:
+            try:
+                attendance_date = date.fromisoformat(filters['date'])
+            except (TypeError, ValueError):
+                attendance_date = None
+            if not attendance_date:
+                messages.error(request, 'Enter a valid attendance date.')
+            else:
+                roster = list(students)
+                submitted_ids = set(request.POST.getlist('student_ids'))
+                valid_ids = {str(student.pk) for student in roster}
+                allowed_statuses = {choice[0] for choice in Attendance.STATUS}
+                if submitted_ids != valid_ids:
+                    messages.error(request, 'Student list changed. Reload the page and try again.')
+                elif any(request.POST.get('status_' + sid) not in allowed_statuses for sid in submitted_ids):
+                    messages.error(request, 'One or more attendance statuses are invalid.')
+                else:
+                    with transaction.atomic():
+                        for student in roster:
+                            Attendance.objects.update_or_create(
+                                student=student, subject=selected_subject, date=attendance_date,
+                                defaults={'status': request.POST.get('status_' + str(student.pk))}
+                            )
+                    messages.success(request, f'Attendance saved for {len(roster)} students in section {filters["section"]}.')
+                    return redirect(
+                        f"{request.path}?department={filters['department']}&academic_year={filters['academic_year']}"
+                        f"&semester={filters['semester']}&section={filters['section']}"
+                        f"&subject={filters['subject']}&date={filters['date']}"
+                    )
+
+    existing = {}
+    if roster_ready:
+        existing = {str(r.student_id): r.status for r in Attendance.objects.filter(
+            student__in=students, subject=selected_subject, date=filters['date']
+        )}
+        for student in students:
+            student.bulk_status = existing.get(str(student.pk), 'P')
+    return render(request, 'core/attendance_bulk.html', {
+        'departments': departments, 'academic_years': academic_years, 'semesters': semesters,
+        'sections': sections, 'subjects': subjects, 'students': students if roster_ready else [],
+        'filters': filters, 'selected_subject': selected_subject, 'roster_ready': roster_ready,
+        'existing': existing, 'status_choices': Attendance.STATUS,
+    })
+
 
 @login_required
 def attendance_reports(request):
@@ -186,9 +269,138 @@ def export_xlsx(sheet_name,title,headers,rows,filename):
     for row in ws.iter_rows(min_row=3):
         for c in row: c.border=Border(bottom=thin)
     ws.freeze_panes='A4'; ws.auto_filter.ref=ws.dimensions
-    for col in ws.columns:
-        letter=col[0].column_letter
-        ws.column_dimensions[letter].width=min(max(max(len(str(c.value or '')) for c in col)+2,12),34)
+    # Determine widths by column index. Merged ranges contain MergedCell
+    # placeholders, which do not expose column_letter or writable styles.
+    for col_idx, col in enumerate(ws.iter_cols(min_col=1, max_col=ws.max_column), start=1):
+        letter = get_column_letter(col_idx)
+        values = [
+            len(str(cell.value or ''))
+            for cell in col
+            if not isinstance(cell, MergedCell)
+        ]
+        content_width = max(values, default=0) + 2
+        ws.column_dimensions[letter].width = min(max(content_width, 12), 34)
     response=HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition']=f'attachment; filename="{filename}"'
     wb.save(response); return response
+
+
+@login_required
+def bulk_marks(request):
+    """Enter or update marks for every student in a selected section."""
+    departments = Department.objects.all()
+    academic_years = AcademicYear.objects.all()
+    semesters = Semester.objects.all()
+    sections = Student.objects.exclude(section='').values_list('section', flat=True).distinct().order_by('section')
+    subjects = Subject.objects.select_related('department', 'semester').all()
+    examinations = Examination.objects.select_related('academic_year', 'semester').all()
+    source = request.POST if request.method == 'POST' else request.GET
+    filters = {
+        'department': source.get('department', ''),
+        'academic_year': source.get('academic_year', ''),
+        'semester': source.get('semester', ''),
+        'section': source.get('section', ''),
+        'subject': source.get('subject', ''),
+        'examination': source.get('examination', ''),
+        'max_marks': source.get('max_marks', ''),
+    }
+
+    students = Student.objects.select_related('department', 'academic_year', 'semester').all()
+    if filters['department']:
+        students = students.filter(department_id=filters['department'])
+    if filters['academic_year']:
+        students = students.filter(academic_year_id=filters['academic_year'])
+    if filters['semester']:
+        students = students.filter(semester_id=filters['semester'])
+    if filters['section']:
+        students = students.filter(section__iexact=filters['section'])
+    students = students.order_by('roll_number')
+
+    roster_ready = bool(filters['section'] and filters['subject'] and filters['examination'])
+    selected_subject = None
+    selected_examination = None
+    if roster_ready:
+        selected_subject = get_object_or_404(Subject, pk=filters['subject'])
+        selected_examination = get_object_or_404(Examination, pk=filters['examination'])
+        if filters['department'] and selected_subject.department_id != int(filters['department']):
+            messages.error(request, 'Choose a subject from the selected department.')
+            roster_ready = False
+        if filters['semester'] and selected_subject.semester_id and selected_subject.semester_id != int(filters['semester']):
+            messages.error(request, 'Choose a subject for the selected semester.')
+            roster_ready = False
+        if selected_examination.semester_id and filters['semester'] and selected_examination.semester_id != int(filters['semester']):
+            messages.error(request, 'Choose an examination for the selected semester.')
+            roster_ready = False
+        if selected_examination.academic_year_id and filters['academic_year'] and selected_examination.academic_year_id != int(filters['academic_year']):
+            messages.error(request, 'Choose an examination for the selected academic year.')
+            roster_ready = False
+
+    existing = {}
+    default_max = filters['max_marks']
+    if roster_ready:
+        records = StudentMark.objects.filter(
+            student__in=students, subject=selected_subject, examination=selected_examination
+        )
+        existing = {str(record.student_id): record for record in records}
+        if not default_max and existing:
+            default_max = str(next(iter(existing.values())).max_marks)
+        for student in students:
+            record = existing.get(str(student.pk))
+            student.bulk_obtained = str(record.obtained_marks) if record else ''
+
+    if request.method == 'POST' and 'save_bulk_marks' in request.POST:
+        if not roster_ready:
+            messages.error(request, 'Select a section, subject and examination before saving.')
+        else:
+            from decimal import InvalidOperation
+            try:
+                max_marks = Decimal(request.POST.get('max_marks', '').strip())
+                if not max_marks.is_finite() or max_marks <= 0:
+                    raise InvalidOperation
+            except (InvalidOperation, AttributeError):
+                messages.error(request, 'Enter a valid maximum mark greater than zero.')
+            else:
+                roster = list(students)
+                submitted_ids = set(request.POST.getlist('student_ids'))
+                valid_ids = {str(student.pk) for student in roster}
+                parsed = {}
+                error = None
+                if submitted_ids != valid_ids:
+                    error = 'Student list changed. Reload the page and try again.'
+                else:
+                    for student in roster:
+                        raw = request.POST.get('marks_' + str(student.pk), '').strip()
+                        if raw == '':
+                            error = f'Enter marks for {student.roll_number} - {student.full_name}.'
+                            break
+                        try:
+                            value = Decimal(raw)
+                            if not value.is_finite() or value < 0 or value > max_marks:
+                                raise InvalidOperation
+                            parsed[student.pk] = value
+                        except (InvalidOperation, AttributeError):
+                            error = f'Invalid marks for {student.roll_number}. Marks must be between 0 and {max_marks}.'
+                            break
+                if error:
+                    messages.error(request, error)
+                else:
+                    with transaction.atomic():
+                        for student in roster:
+                            StudentMark.objects.update_or_create(
+                                student=student, subject=selected_subject, examination=selected_examination,
+                                defaults={'max_marks': max_marks, 'obtained_marks': parsed[student.pk]}
+                            )
+                    messages.success(request, f'Marks saved for {len(roster)} students in section {filters["section"]}.')
+                    return redirect(
+                        f"{request.path}?department={filters['department']}&academic_year={filters['academic_year']}"
+                        f"&semester={filters['semester']}&section={filters['section']}"
+                        f"&subject={filters['subject']}&examination={filters['examination']}&max_marks={max_marks}"
+                    )
+
+    return render(request, 'core/marks_bulk.html', {
+        'departments': departments, 'academic_years': academic_years, 'semesters': semesters,
+        'sections': sections, 'subjects': subjects, 'examinations': examinations,
+        'students': students if roster_ready else [], 'filters': filters,
+        'selected_subject': selected_subject, 'selected_examination': selected_examination,
+        'roster_ready': roster_ready, 'existing': existing, 'default_max': default_max,
+    })

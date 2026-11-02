@@ -1,0 +1,39 @@
+{% extends 'core/base.html' %}
+{% block title %}Bulk Marks Entry | College ERP{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+  <div><h2 class="mb-1">Bulk Marks Entry</h2><p class="text-muted mb-0">Enter or update marks for every student in a selected section.</p></div>
+  <a class="btn btn-outline-secondary" href="{% url 'marks_list' %}">Back to Marks</a>
+</div>
+<div class="card p-3 mb-3">
+  <h5>Choose class, subject and examination</h5>
+  <form method="get" class="row g-3">
+    <div class="col-md-3"><label class="form-label">Department</label><select name="department" class="form-select"><option value="">All departments</option>{% for d in departments %}<option value="{{ d.id }}" {% if filters.department == d.id|stringformat:"s" %}selected{% endif %}>{{ d.code }} - {{ d.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label">Academic year</label><select name="academic_year" class="form-select"><option value="">All years</option>{% for y in academic_years %}<option value="{{ y.id }}" {% if filters.academic_year == y.id|stringformat:"s" %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label">Semester</label><select name="semester" class="form-select"><option value="">All semesters</option>{% for sem in semesters %}<option value="{{ sem.id }}" {% if filters.semester == sem.id|stringformat:"s" %}selected{% endif %}>{{ sem }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label">Section *</label><select name="section" class="form-select" required><option value="">Select section</option>{% for section in sections %}<option value="{{ section }}" {% if filters.section == section %}selected{% endif %}>{{ section }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label">Subject *</label><select name="subject" class="form-select" required><option value="">Select subject</option>{% for subject in subjects %}<option value="{{ subject.id }}" {% if filters.subject == subject.id|stringformat:"s" %}selected{% endif %}>{{ subject.code }} - {{ subject.name }} ({{ subject.department.code }})</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label">Examination *</label><select name="examination" class="form-select" required><option value="">Select examination</option>{% for exam in examinations %}<option value="{{ exam.id }}" {% if filters.examination == exam.id|stringformat:"s" %}selected{% endif %}>{{ exam.name }}{% if exam.semester %} - {{ exam.semester }}{% endif %}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label">Maximum marks *</label><input class="form-control" type="number" name="max_marks" min="0.01" step="0.01" value="{{ default_max }}" placeholder="e.g. 20" required></div>
+    <div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary w-100">Load Students</button></div>
+  </form>
+</div>
+{% if roster_ready %}
+<div class="card p-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"><div><h5 class="mb-1">{{ filters.section }} · {{ selected_subject.code }}</h5><span class="text-muted">{{ students|length }} students · {{ selected_examination.name }} · Maximum {{ default_max }}</span></div><div class="d-flex gap-2"><button type="button" class="btn btn-sm btn-outline-secondary" onclick="fillAll(0)">Set all to 0</button></div></div>
+  {% if students %}
+  <form method="post">{% csrf_token %}
+    {% for key,value in filters.items %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+    <input type="hidden" name="max_marks" value="{{ default_max }}">
+    <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>#</th><th>Roll number</th><th>Student name</th><th>Obtained marks / {{ default_max }}</th></tr></thead><tbody>
+    {% for student in students %}<tr><td>{{ forloop.counter }}<input type="hidden" name="student_ids" value="{{ student.id }}"></td><td>{{ student.roll_number }}</td><td>{{ student.full_name }}</td><td><input class="form-control obtained-mark" type="number" name="marks_{{ student.id }}" min="0" max="{{ default_max }}" step="0.01" value="{{ student.bulk_obtained }}" required style="max-width:180px" aria-label="Marks for {{ student.full_name }}"></td></tr>{% endfor %}
+    </tbody></table></div>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2"><span class="text-muted">Existing marks for this student, subject and examination will be updated.</span><button class="btn btn-success btn-lg" type="submit" name="save_bulk_marks">Save Marks for All Students</button></div>
+  </form>
+  {% else %}<div class="alert alert-warning mb-0">No students found for this section and filters.</div>{% endif %}
+</div>
+{% else %}<div class="alert alert-info">Select a section, subject and examination, then click <strong>Load Students</strong>.</div>{% endif %}
+<script>
+function fillAll(value) { document.querySelectorAll('.obtained-mark').forEach(function(input) { input.value = value; }); }
+</script>
+{% endblock %}

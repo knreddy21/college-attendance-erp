@@ -7,7 +7,7 @@
 <nav class="navbar navbar-dark topbar px-3"><a class="navbar-brand fw-bold" href="{% url 'dashboard' %}">🎓 College ERP</a>
 <div class="text-white">{% if request.user.is_authenticated %}{{ request.user.username }} · <form class="d-inline" method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="btn btn-sm btn-outline-light">Logout</button></form>{% endif %}</div></nav>
 <div class="container-fluid"><div class="row"><aside class="col-md-2 sidebar p-3">
-<a href="{% url 'dashboard' %}">Dashboard</a><a href="{% url 'student_list' %}">Students</a><a href="{% url 'attendance_list' %}">Attendance</a><a href="{% url 'attendance_reports' %}">Attendance Reports</a><a href="{% url 'marks_list' %}">Marks Management</a><a href="{% url 'admin:index' %}">Administration</a>
+<a href="{% url 'dashboard' %}">Dashboard</a><a href="{% url 'student_list' %}">Students</a><a href="{% url 'attendance_list' %}">Attendance</a><a href="{% url 'attendance_bulk' %}">Bulk Attendance</a><a href="{% url 'attendance_reports' %}">Attendance Reports</a><a href="{% url 'marks_list' %}">Marks Management</a><a href="{% url 'bulk_marks' %}">Bulk Marks Entry</a><a href="{% url 'admin:index' %}">Administration</a>
 </aside><main class="col-md-10 p-4">
 {% for message in messages %}<div class="alert alert-info">{{ message }}</div>{% endfor %}
 {% block content %}{% endblock %}</main></div></div></body></html>
